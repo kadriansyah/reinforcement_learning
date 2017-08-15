@@ -110,5 +110,5 @@ if __name__ == "__main__":
         if episode > 0 and episode % 10 == 0:
             agent.save("save/cartpole-dqn.ckpt")
 
-print("Rewards: {:.2f}".format(sum(rewards)))
-print("Percent of succesful episodes: {:.2f}%".format(sum(rewards)/EPISODES))
+# print("Rewards: {:.2f}".format(sum(rewards)))
+# print("Percent of succesful episodes: {:.2f}%".format(sum(rewards)/EPISODES))
