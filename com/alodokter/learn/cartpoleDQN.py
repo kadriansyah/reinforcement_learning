@@ -75,7 +75,7 @@ if __name__ == "__main__":
     agent = CartPoleDQN(state_size, action_size)
     agent.load("save/cartpole-dqn.ckpt")
 
-    done = False
+    rewards = []
     batch_size = 32
     for episode in range(EPISODES):
         state = env.reset()
@@ -91,15 +91,24 @@ if __name__ == "__main__":
             if len(agent.memory) > REPLAY_MEMORY:
                 agent.memory.popleft()
 
+            # # experience replay
+            # if len(agent.memory) > batch_size:
+            #     agent.replay(batch_size)
+
             total_reward += reward
             state = next_state
             if done:
                 print("episode: {}/{}, score: {}, e: {:.2f}".format(episode, EPISODES, time, agent.epsilon))
                 break
 
-        # experience replay
+        rewards.append(total_reward)
+
+        # experience replay (* should be inside time loop)
         if len(agent.memory) > batch_size:
             agent.replay(batch_size)
 
         if episode > 0 and episode % 10 == 0:
             agent.save("save/cartpole-dqn.ckpt")
+
+print("Rewards: {:.2f}".format(sum(rewards)))
+print("Percent of succesful episodes: {:.2f}%".format(sum(rewards)/EPISODES))
