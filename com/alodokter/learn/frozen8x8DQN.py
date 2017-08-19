@@ -16,7 +16,7 @@ LEARNING_RATE = 0.01
 TIMES = 500
 RENDER = True
 
-env = gym.make('FrozenLake-v0')
+env = gym.make('FrozenLake8x8-v0')
 # env = gym.wrappers.Monitor(env, 'exp_n1')
 
 state_dim  = env.observation_space.n
@@ -27,13 +27,6 @@ tf.reset_default_graph()
 inputs = tf.placeholder(shape=[1, state_dim], dtype=tf.float32)
 temp = tf.placeholder(tf.float32)
 keep = tf.placeholder(tf.float32)
-
-# W = tf.get_variable(
-#         "W",
-#         shape=[state_dim, action_dim],
-#         initializer=tf.contrib.layers.xavier_initializer())
-#
-# Q_out = tf.matmul(inputs, W)
 
 hidden = tf.contrib.layers.fully_connected(inputs, 64, activation_fn=tf.nn.tanh, biases_initializer=None)
 hidden = tf.nn.dropout(hidden, keep)
@@ -58,7 +51,7 @@ with tf.Session() as sess:
     sess.run(init)
 
     # Restore model weights from previously saved model
-    saver.restore(sess, "save/frozen-dqn/frozen-dqn.ckpt")
+    saver.restore(sess, "save/frozen8x8-dqn/frozen8x8-dqn.ckpt")
 
     total_steps = 0
     rewards = []
@@ -122,7 +115,7 @@ with tf.Session() as sess:
         rewards.append(total_reward)
 
         if episode > 0 and episode % 500 == 0:
-            saver.save(sess, "save/frozen-dqn/frozen-dqn.ckpt")
+            saver.save(sess, "save/frozen8x8-dqn/frozen8x8-dqn.ckpt")
 
         if episode > 0 and episode % 1000 == 0:
             print("episode: {:d}".format(episode))
