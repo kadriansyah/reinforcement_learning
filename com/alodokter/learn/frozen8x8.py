@@ -3,11 +3,11 @@ import numpy as np
 import pickle
 from pathlib import Path
 
-env = gym.make('FrozenLake-v0')
+env = gym.make('FrozenLake8x8-v0')
 
 # Initialize table with all zeros
-if Path('save/frozen/frozen-q-table.ckpt').is_file():
-    q_table = open('save/frozen/frozen-q-table.ckpt','rb')
+if Path('save/frozen/frozen8x8-q-table.ckpt').is_file():
+    q_table = open('save/frozen/frozen8x8-q-table.ckpt','rb')
     Q = pickle.load(q_table)
 else:
     Q = np.zeros([env.observation_space.n, env.action_space.n])
@@ -15,7 +15,7 @@ else:
 # Set learning parameters
 alpha = 0.8
 gamma = 0.99
-num_episodes = 10000
+num_episodes = 2000
 
 # create lists to contain total rewards and steps per episode
 rewards = []
@@ -44,8 +44,8 @@ for episode in range(num_episodes):
     if (episode + 1) % 500 == 0:
         # save Q-Table
         print('[episode{:d}] saving Q-Table...'.format(episode + 1))
-        q_table = open('save/frozen/frozen-q-table.ckpt','wb')
+        q_table = open('save/frozen/frozen8x8-q-table.ckpt','wb')
         pickle.dump(Q, q_table)
         q_table.close()
 print("Rewards: {:.2f}".format(sum(rewards)))
-print("Percent of succesful episodes: {:.2f}%".format(sum(rewards)/num_episodes))
+print("Percent of succesful episodes: {:.2f}%".format((sum(rewards)/num_episodes) * 100))

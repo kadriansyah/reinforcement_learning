@@ -84,7 +84,9 @@ class ActorNetwork(object):
         self.actor_gradients = tf.gradients(self.scaled_out, self.network_params, -self.action_gradient)
 
         # Optimization Op
-        self.optimize = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(zip(self.actor_gradients, self.network_params))
+        self.optimize = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(
+                                                                    zip(self.actor_gradients,
+                                                                    self.network_params))
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 
     def create_actor_network(self, name):
