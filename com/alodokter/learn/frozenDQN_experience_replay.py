@@ -18,7 +18,6 @@ RENDER = True
 HIDDEN_SIZE = 64
 
 env = gym.make('FrozenLake-v0')
-# env = gym.wrappers.Monitor(env, 'exp_n1')
 
 state_dim  = env.observation_space.n
 action_dim = env.action_space.n
