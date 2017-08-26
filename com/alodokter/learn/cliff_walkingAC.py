@@ -9,9 +9,9 @@ EPISODES = 5000
 GAMMA = 1
 LEARNING_RATE_POLICY_ESTIMATOR = 0.01
 LEARNING_RATE_VALUE_ESTIMATOR = 0.01
-TIMES = 500
 RENDER = True
 SAVE = True
+RELOAD = True
 
 class PolicyEstimator(object):
     """
@@ -82,7 +82,6 @@ class ValueEstimator(object):
         _, loss = self.sess.run([self.train_op, self.loss], feed_dict={self.state:  state, self.target: target })
         return loss
 
-# env = gym.make('FrozenLake8x8-v0')
 env = gym.make('CliffWalking-v0')
 
 s_dim = env.observation_space.n
@@ -102,7 +101,7 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
 
     # Restore model weights from previously saved model
-    if SAVE:
+    if RELOAD:
         saver.restore(sess, "save/cliff_walking-ac/cliff_walking-ac.ckpt")
 
     success_episodes = 0
@@ -152,5 +151,5 @@ with tf.Session() as sess:
             print("Episode Rewards: {:.2f}".format(total_reward))
             print("Total Rewards: {:d}".format(sum(rewards)))
             print("Percent of succesful episodes: {:.2f}%".format((success_episodes/EPISODES) * 100))
-            print("Percent of successul episodes with shortest path: {:.2f}".format((success_episodes_with_shortest_path/success_episodes) * 100))
+            print("Percent of successul episodes with shortest path: {:.2f}%".format((success_episodes_with_shortest_path/success_episodes) * 100))
             time.sleep(2.5)

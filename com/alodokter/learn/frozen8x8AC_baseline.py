@@ -1,17 +1,19 @@
 import numpy as np
 import gym
 import random
+import itertools
 import tensorflow as tf
 import time
 from collections import deque
 from collections import namedtuple
 
-EPISODES = 10000
+EPISODES = 5000
 GAMMA = 0.99
-LEARNING_RATE_POLICY_ESTIMATOR = 0.01
+LEARNING_RATE_POLICY_ESTIMATOR = 0.001
 LEARNING_RATE_VALUE_ESTIMATOR = 0.01
-TIMES = 500
 RENDER = True
+SAVE = True
+RELOAD = True
 
 class PolicyEstimator(object):
     """
@@ -26,7 +28,7 @@ class PolicyEstimator(object):
             self.action = tf.placeholder(shape=[1, self.a_dim], dtype=tf.int32)
             self.target = tf.placeholder(tf.float32)
 
-            state_one_hot = tf.one_hot(self.state, int(self.s_dim))
+            state_one_hot = tf.one_hot(indices=self.state, depth=self.s_dim)
             self.output = tf.contrib.layers.fully_connected(
                             inputs=tf.expand_dims(state_one_hot, 0),
                             num_outputs=self.a_dim,
@@ -37,7 +39,7 @@ class PolicyEstimator(object):
             self.predicted_action = tf.gather(self.probabilities, self.action)
 
             # Loss and train op
-            self.loss = -tf.log(self.predicted_action) * self.target
+            self.loss = -(tf.log(self.predicted_action) * self.target)
             self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             self.train_op = self.optimizer.minimize(self.loss, global_step=tf.contrib.framework.get_global_step())
 
@@ -62,7 +64,7 @@ class ValueEstimator(object):
             self.state  = tf.placeholder(shape=[],  dtype=tf.int32)
             self.target = tf.placeholder(tf.float32)
 
-            state_one_hot = tf.one_hot(self.state, int(self.s_dim))
+            state_one_hot = tf.one_hot(indices=self.state, depth=self.s_dim)
             self.output = tf.contrib.layers.fully_connected(
                             inputs=tf.expand_dims(state_one_hot, 0),
                             num_outputs=1,
@@ -70,8 +72,7 @@ class ValueEstimator(object):
                             weights_initializer=tf.zeros_initializer)
 
             self.value_estimate = tf.squeeze(self.output)
-            # self.loss = tf.squared_difference(self.value_estimate, self.target)
-            self.loss = tf.reduce_sum(tf.square(self.target - self.value_estimate))
+            self.loss = tf.squared_difference(self.value_estimate, self.target)
 
             self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             self.train_op = self.optimizer.minimize(self.loss, global_step=tf.contrib.framework.get_global_step())
@@ -93,7 +94,6 @@ def one_hot_encoding(dim, x):
     return np.identity(dim)[x:x+1]
 
 env = gym.make('FrozenLake8x8-v0')
-# env = gym.wrappers.Monitor(env, 'exp_n1')
 
 s_dim = env.observation_space.n
 a_dim = env.action_space.n
@@ -115,7 +115,8 @@ with tf.Session() as sess:
     Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "done"])
 
     # Restore model weights from previously saved model
-    saver.restore(sess, "save/frozen8x8-pg/frozen8x8-pg.ckpt")
+    if RELOAD:
+        saver.restore(sess, "save/frozen8x8-ac-batch/frozen8x8-ac-batch.ckpt")
 
     total_steps = 0
     rewards = []
@@ -123,7 +124,7 @@ with tf.Session() as sess:
         state = env.reset()
         total_reward = 0
         memory = []
-        for _ in range(TIMES):
+        for _ in itertools.count():
             if RENDER:
                 env.render()
 
@@ -134,14 +135,9 @@ with tf.Session() as sess:
             # Get new state and reward from environment
             next_state, reward, done, _ = env.step(action)
 
-            if done:
-                r = 10 if reward > 0 else -10
-            else:
-                r = 0
-
             # store the transition in D: <state, action, reward, next_state, done>
             memory.append(
-                Transition(state=state, action=one_hot_encoding(a_dim, action), reward=r, next_state=next_state, done=done))
+                Transition(state=state, action=one_hot_encoding(a_dim, action), reward=reward, next_state=next_state, done=done))
 
             total_reward += reward
             state = next_state
@@ -167,8 +163,8 @@ with tf.Session() as sess:
             # update our policy estimator
             policy_estimator.update(transition.state, advantage, transition.action)
 
-        if episode > 0 and (episode + 1) % 1000 == 0:
-            saver.save(sess, "save/frozen8x8-pg/frozen8x8-pg.ckpt")
+        if SAVE and episode > 0 and (episode + 1) % 1000 == 0:
+            saver.save(sess, "save/frozen8x8-ac-batch/frozen8x8-ac-batch.ckpt")
 
         if episode > 0 and (episode + 1) % 1000 == 0:
             print("episode: {:d}".format(episode + 1))

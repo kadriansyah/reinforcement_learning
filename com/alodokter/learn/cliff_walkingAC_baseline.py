@@ -8,11 +8,11 @@ from collections import deque
 from collections import namedtuple
 
 EPISODES = 5000
-GAMMA = 1
+GAMMA = 0.99
 LEARNING_RATE_POLICY_ESTIMATOR = 0.001
 LEARNING_RATE_VALUE_ESTIMATOR = 0.01
 RENDER = True
-SAVE = False
+SAVE = True
 RELOAD = False
 
 class PolicyEstimator(object):
@@ -26,7 +26,7 @@ class PolicyEstimator(object):
         with tf.variable_scope(scope):
             self.state  = tf.placeholder(shape=[], dtype=tf.int32)
             self.action = tf.placeholder(dtype=tf.int32)
-            self.target = tf.placeholder(dtype=tf.float32)
+            self.target = tf.placeholder(tf.float32)
 
             state_one_hot = tf.one_hot(indices=self.state, depth=self.s_dim)
             self.output = tf.contrib.layers.fully_connected(
@@ -84,8 +84,16 @@ class ValueEstimator(object):
         _, loss = self.sess.run([self.train_op, self.loss], feed_dict={self.state:  state, self.target: target })
         return loss
 
-# env = gym.make('FrozenLake8x8-v0')
-env = gym.make('FrozenLake8x8-v0')
+def xrange(x):
+    return iter(range(x))
+
+def xrange(s,x):
+    return range(s,x)
+
+def one_hot_encoding(dim, x):
+    return np.identity(dim)[x:x+1]
+
+env = gym.make('CliffWalking-v0')
 
 s_dim = env.observation_space.n
 a_dim = env.action_space.n
@@ -103,15 +111,20 @@ with tf.Session() as sess:
 
     sess.run(tf.global_variables_initializer())
 
+    # store the previous observations in replay memory
+    Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "done"])
+
     # Restore model weights from previously saved model
     if RELOAD:
-        saver.restore(sess, "save/frozen8x8-ac/frozen8x8-ac.ckpt")
+        saver.restore(sess, "save/cliff_walking-ac-baseline/cliff_walking-ac-baseline.ckpt")
 
-    total_steps = 0
+    success_episodes = 0
+    success_episodes_with_shortest_path = 0
     rewards = []
     for episode in range(0, EPISODES):
         state = env.reset()
         total_reward = 0
+        memory = []
         for _ in itertools.count():
             if RENDER:
                 env.render()
@@ -123,34 +136,42 @@ with tf.Session() as sess:
             # Get new state and reward from environment
             next_state, reward, done, _ = env.step(action)
 
-            # Calculate TD Target
-            curr_value = value_estimator.predict(state)
-            value_next = value_estimator.predict(next_state)
-            td_target = reward + GAMMA * value_next
-            td_error  = td_target - curr_value
-
-            # Update the value estimator
-            value_estimator.update(state, td_target)
-
-            # Update the policy estimator using the td error as our advantage estimate
-            policy_estimator.update(state, td_error, action)
+            # store the transition in D: <state, action, reward, next_state, done>
+            memory.append(
+                Transition(state=state, action=action, reward=reward, next_state=next_state, done=done))
 
             total_reward += reward
             state = next_state
-            total_steps += 1
 
             if done:
-                print("episode: {}/{}, score: {}".format(episode + 1, EPISODES, total_reward))
+                print("Episode: {}/{}, Total Reward: {}".format(episode + 1, EPISODES, total_reward))
+                success_episodes += 1 if reward == -1 else 0
+                success_episodes_with_shortest_path += 1 if total_reward == -13 else 0
                 break
 
         rewards.append(total_reward)
 
+        # go through the episode and make policy updates
+        for t, transition in enumerate(memory):
+            total_return = sum(GAMMA**i * t.reward for i, t in enumerate(memory[t:]))
+
+            # update our value estimator
+            value_estimator.update(transition.state, total_return)
+
+            # calculate baseline/advantage
+            baseline_value = value_estimator.predict(transition.state)
+            advantage = total_return - baseline_value
+
+            # update our policy estimator
+            policy_estimator.update(transition.state, advantage, transition.action)
+
         if SAVE and episode > 0 and (episode + 1) % 1000 == 0:
-            saver.save(sess, "save/frozen8x8-ac/frozen8x8-ac.ckpt")
+            saver.save(sess, "save/cliff_walking-ac-baseline/cliff_walking-ac-baseline.ckpt")
 
         if episode > 0 and (episode + 1) % 1000 == 0:
             print("Episode: {:d}".format(episode + 1))
             print("Episode Rewards: {:.2f}".format(total_reward))
-            print("Total Rewards: {:.2f}".format(sum(rewards)))
-            print("Percent of succesful episodes: {:.2f}%".format((sum(rewards)/episode) * 100))
+            print("Total Rewards: {:d}".format(sum(rewards)))
+            print("Percent of succesful episodes: {:.2f}%".format((success_episodes/EPISODES) * 100))
+            print("Percent of successul episodes with shortest path: {:.2f}".format((success_episodes_with_shortest_path/success_episodes) * 100))
             time.sleep(2.5)
