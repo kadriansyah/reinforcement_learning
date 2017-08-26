@@ -1,17 +1,17 @@
 import numpy as np
 import gym
 import random
+import itertools
 import tensorflow as tf
 import time
-from collections import deque
-from collections import namedtuple
 
-EPISODES = 20000
+EPISODES = 5000
 GAMMA = 1
 LEARNING_RATE_POLICY_ESTIMATOR = 0.01
 LEARNING_RATE_VALUE_ESTIMATOR = 0.01
 TIMES = 500
 RENDER = True
+SAVE = True
 
 class PolicyEstimator(object):
     """
@@ -26,7 +26,7 @@ class PolicyEstimator(object):
             self.action = tf.placeholder(dtype=tf.int32)
             self.target = tf.placeholder(dtype=tf.float32)
 
-            state_one_hot = tf.one_hot(self.state, int(self.s_dim))
+            state_one_hot = tf.one_hot(indices=self.state, depth=self.s_dim)
             self.output = tf.contrib.layers.fully_connected(
                             inputs=tf.expand_dims(state_one_hot, 0),
                             num_outputs=self.a_dim,
@@ -34,10 +34,10 @@ class PolicyEstimator(object):
                             weights_initializer=tf.zeros_initializer)
 
             self.probabilities = tf.squeeze(tf.nn.softmax(self.output))
-            self.predicted_action = tf.gather(self.probabilities, self.action)
+            self.chosen_action = tf.gather(self.probabilities, self.action)
 
             # Loss and train op
-            self.loss = -tf.log(self.predicted_action) * self.target
+            self.loss = -(tf.log(self.chosen_action) * self.target)
             self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             self.train_op = self.optimizer.minimize(self.loss, global_step=tf.contrib.framework.get_global_step())
 
@@ -47,7 +47,7 @@ class PolicyEstimator(object):
     def update(self, state, target, action):
         _, loss = self.sess.run(
                     [self.train_op, self.loss],
-                    feed_dict={self.state:  state,self.target: target,self.action: action })
+                    feed_dict={self.state:  state, self.target: target, self.action: action })
         return loss
 
 class ValueEstimator(object):
@@ -62,7 +62,7 @@ class ValueEstimator(object):
             self.state  = tf.placeholder(shape=[],  dtype=tf.int32)
             self.target = tf.placeholder(tf.float32)
 
-            state_one_hot = tf.one_hot(self.state, int(self.s_dim))
+            state_one_hot = tf.one_hot(indices=self.state, depth=self.s_dim)
             self.output = tf.contrib.layers.fully_connected(
                             inputs=tf.expand_dims(state_one_hot, 0),
                             num_outputs=1,
@@ -102,14 +102,16 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
 
     # Restore model weights from previously saved model
-    saver.restore(sess, "save/CliffWalking-ac/CliffWalking-ac.ckpt")
+    if SAVE:
+        saver.restore(sess, "save/cliff_walking-ac/cliff_walking-ac.ckpt")
 
-    total_steps = 0
+    success_episodes = 0
+    success_episodes_with_shortest_path = 0
     rewards = []
     for episode in range(0, EPISODES):
         state = env.reset()
         total_reward = 0
-        for _ in range(TIMES):
+        for _ in itertools.count():
             if RENDER:
                 env.render()
 
@@ -134,20 +136,21 @@ with tf.Session() as sess:
 
             total_reward += reward
             state = next_state
-            total_steps += 1
 
             if done:
-                print("episode: {}/{}, score: {}".format(episode + 1, EPISODES, total_reward))
+                print("Episode: {}/{}, Total Reward: {}".format(episode + 1, EPISODES, total_reward))
+                success_episodes += 1 if reward == -1 else 0
+                success_episodes_with_shortest_path += 1 if total_reward == -13 else 0
                 break
 
         rewards.append(total_reward)
-
-        if episode > 0 and (episode + 1) % 1000 == 0:
-            saver.save(sess, "save/CliffWalking-ac/CliffWalking-ac.ckpt")
+        if SAVE and episode > 0 and (episode + 1) % 1000 == 0:
+            saver.save(sess, "save/cliff_walking-ac/cliff_walking-ac.ckpt")
 
         if episode > 0 and (episode + 1) % 1000 == 0:
             print("Episode: {:d}".format(episode + 1))
             print("Episode Rewards: {:.2f}".format(total_reward))
-            print("Total Rewards: {:.2f}".format(sum(rewards)))
-            print("Percent of succesful episodes: {:.2f}%".format((sum(rewards)/episode) * 100))
+            print("Total Rewards: {:d}".format(sum(rewards)))
+            print("Percent of succesful episodes: {:.2f}%".format((success_episodes/EPISODES) * 100))
+            print("Percent of successul episodes with shortest path: {:.2f}".format((success_episodes_with_shortest_path/success_episodes) * 100))
             time.sleep(2.5)
